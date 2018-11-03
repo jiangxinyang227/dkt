@@ -1,4 +1,5 @@
 import tensorflow as tf
+import numpy as np
 
 
 class TensorFlowDKT(object):
@@ -13,6 +14,7 @@ class TensorFlowDKT(object):
         # 定义需要喂给模型的参数
         self.max_steps = tf.placeholder(tf.int32, name="max_steps")  # 当前batch中最大序列长度
         self.input_data = tf.placeholder(tf.float32, [batch_size, None, input_size], name="input_x")
+
         self.sequence_len = tf.placeholder(tf.int32, [batch_size], name="sequence_len")
         self.keep_prob = tf.placeholder(tf.float32, name="keep_prob")  # dropout keep prob
 
@@ -47,7 +49,7 @@ class TensorFlowDKT(object):
 
         # 对每个batch中每个序列中的每个时间点的输出中的每个值进行sigmoid计算，这里的值表示对某个知识点的掌握情况，
         # 每个时间点都会输出对所有知识点的掌握情况
-        self.pred_all = tf.sigmoid(self.mat_logits)
+        self.pred_all = tf.sigmoid(self.mat_logits, name="pred_all")
 
         # 计算损失loss
         flat_logits = tf.reshape(self.logits, [-1])
@@ -65,16 +67,15 @@ class TensorFlowDKT(object):
         flat_target_logits = tf.gather(flat_logits, flat_target_id)
 
         # 对切片后的数据进行sigmoid转换
-        self.pred = tf.sigmoid(flat_target_logits)
+        self.pred = tf.sigmoid(tf.reshape(flat_target_logits, [batch_size, self.max_steps]), name="pred")
         # 将sigmoid后的值表示为0或1
-        self.binary_pred = tf.cast(tf.greater_equal(self.pred, 0.5), tf.float32)
+        self.binary_pred = tf.cast(tf.greater_equal(self.pred, 0.5), tf.float32, name="binary_pred")
 
         # 定义损失函数
         with tf.name_scope("loss"):
-            self.loss = tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(labels=flat_target_correctness,
-                                                                              logits=flat_target_logits))
+            # flat_target_logits_sigmoid = tf.nn.log_softmax(flat_target_logits)
+            # self.loss = -tf.reduce_mean(flat_target_correctness * flat_target_logits_sigmoid)
+            self.loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels=flat_target_correctness,
+                                                                               logits=flat_target_logits))
 
-        with tf.name_scope("accuracy"):
 
-            correct_predictions = tf.equal(self.binary_pred, flat_target_correctness)
-            self.accuracy = tf.reduce_mean(tf.cast(correct_predictions, "float"), name="accuracy")

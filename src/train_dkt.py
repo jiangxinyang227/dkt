@@ -4,7 +4,7 @@ import os
 
 import numpy as np
 import tensorflow as tf
-from sklearn.metrics import roc_auc_score, precision_recall_fscore_support, accuracy_score
+from sklearn.metrics import roc_auc_score, accuracy_score
 
 from model import TensorFlowDKT
 from data_process import DataGenerator
@@ -13,6 +13,33 @@ from config import Config
 
 def mean(item):
     return sum(item) / len(item)
+
+
+def gen_metrics(sequence_len, binary_pred, pred, target_correctness):
+    """
+    生成auc和accuracy的指标值
+    :param sequence_len: 每一个batch中各序列的长度组成的列表
+    :param binary_pred:
+    :param pred:
+    :param target_correctness:
+    :return:
+    """
+    binary_preds = []
+    preds = []
+    target_correctnesses = []
+    for seq_idx, seq_len in enumerate(sequence_len):
+        binary_preds.append(binary_pred[seq_idx, :seq_len])
+        preds.append(pred[seq_idx, :seq_len])
+        target_correctnesses.append(target_correctness[seq_idx, :seq_len])
+
+    new_binary_pred = np.concatenate(binary_preds)
+    new_pred = np.concatenate(preds)
+    new_target_correctness = np.concatenate(target_correctnesses)
+
+    auc = roc_auc_score(new_target_correctness, new_pred)
+    accuracy = accuracy_score(new_target_correctness, new_binary_pred)
+
+    return auc, accuracy
 
 
 class DKTEngine(object):
@@ -27,12 +54,6 @@ class DKTEngine(object):
     def add_gradient_noise(self, grad, stddev=1e-3, name=None):
         """
         Adds gradient noise as described in http://arxiv.org/abs/1511.06807 [2].
-
-        The input Tensor `t` should be a gradient.
-
-        The output will be `t` + gaussian noise.
-
-        0.001 was said to be a good fixed value for memory networks [2].
         """
         with tf.op_scope([grad, stddev], name, "add_gradient_noise") as name:
             grad = tf.convert_to_tensor(grad, name="grad")
@@ -54,11 +75,14 @@ class DKTEngine(object):
                      dkt.sequence_len: params['seq_len'],
                      dkt.keep_prob: self.config.modelConfig.dropout_keep_prob}
 
-        _, step, summaries, loss, accuracy = sess.run(
-            [train_op, global_step, train_summary_op, dkt.loss, dkt.accuracy],
+        _, step, summaries, loss, binary_pred, pred, target_correctness = sess.run(
+            [train_op, global_step, train_summary_op, dkt.loss, dkt.binary_pred, dkt.pred, dkt.target_correctness],
             feed_dict)
+
+        auc, accuracy = gen_metrics(params['seq_len'], binary_pred, pred, target_correctness)
+
         time_str = datetime.datetime.now().isoformat()
-        print("train: {}: step {}, loss {:g}, acc {:g}".format(time_str, step, loss, accuracy))
+        print("train: {}: step {}, loss {}, acc {}, auc: {}".format(time_str, step, loss, accuracy, auc))
         train_summary_writer.add_summary(summaries, step)
 
     def dev_step(self, params, dev_summary_op, writer=None):
@@ -75,12 +99,11 @@ class DKTEngine(object):
                      dkt.max_steps: params['max_len'],
                      dkt.sequence_len: params['seq_len'],
                      dkt.keep_prob: 1.0}
-        step, summaries, loss, accuracy, pred, binary_pred, target_correctness = sess.run(
-            [global_step, dev_summary_op, dkt.loss, dkt.accuracy, dkt.pred, dkt.binary_pred,
-             dkt.flat_target_correctness],
+        step, summaries, loss, pred, binary_pred, target_correctness = sess.run(
+            [global_step, dev_summary_op, dkt.loss, dkt.pred, dkt.binary_pred, dkt.target_correctness],
             feed_dict)
 
-        auc = roc_auc_score(target_correctness, binary_pred)
+        auc, accuracy = gen_metrics(params['seq_len'], binary_pred, pred, target_correctness)
         # precision, recall, f_score = precision_recall_fscore_support(target_correctness, binary_pred)
 
         if writer:
@@ -135,7 +158,7 @@ class DKTEngine(object):
             # 对梯度进行截断，并且加上梯度噪音
             grads_and_vars = [(tf.clip_by_norm(g, config.trainConfig.max_grad_norm), v)
                               for g, v in grads_and_vars if g is not None]
-            grads_and_vars = [(self.add_gradient_noise(g), v) for g, v in grads_and_vars]
+            # grads_and_vars = [(self.add_gradient_noise(g), v) for g, v in grads_and_vars]
 
             # 定义图中最后的节点
             train_op = optimizer.apply_gradients(grads_and_vars, global_step=global_step, name="train_op")
@@ -154,26 +177,18 @@ class DKTEngine(object):
             out_dir = os.path.abspath(os.path.join(os.path.curdir, "runs", timestamp))
             print("writing to {}".format(out_dir))
 
-            # Summaries for loss and accuracy
-
             # 训练时的 Summaries
             train_loss_summary = tf.summary.scalar("loss", train_dkt.loss)
-            train_acc_summary = tf.summary.scalar("accuracy", train_dkt.accuracy)
-            train_summary_op = tf.summary.merge([train_loss_summary, train_acc_summary, grad_summaries_merged])
+            train_summary_op = tf.summary.merge([train_loss_summary, grad_summaries_merged])
             train_summary_dir = os.path.join(out_dir, "summaries", "train")
             train_summary_writer = tf.summary.FileWriter(train_summary_dir, sess.graph)
 
             # 测试时的 summaries
             test_loss_summary = tf.summary.scalar("loss", test_dkt.loss)
-            test_acc_summary = tf.summary.scalar("accuracy", test_dkt.accuracy)
-            dev_summary_op = tf.summary.merge([test_loss_summary, test_acc_summary])
+            dev_summary_op = tf.summary.merge([test_loss_summary])
             dev_summary_dir = os.path.join(out_dir, "summaries", "dev")
             dev_summary_writer = tf.summary.FileWriter(dev_summary_dir, sess.graph)
 
-            checkpoint_dir = os.path.abspath(os.path.join(out_dir, "checkpoints"))
-            checkpoint_prefix = os.path.join(checkpoint_dir, "model")
-            if not os.path.exists(checkpoint_dir):
-                os.makedirs(checkpoint_dir)
             saver = tf.train.Saver(tf.global_variables())
 
             sess.run(tf.global_variables_initializer())
@@ -195,26 +210,23 @@ class DKTEngine(object):
                         losses = []
                         accuracys = []
                         aucs = []
-                        # precisions = []
-                        # recalls = []
                         for params in dataGen.next_batch(test_seqs):
                             loss, accuracy, auc = self.dev_step(params, dev_summary_op, writer=None)
                             losses.append(loss)
                             accuracys.append(accuracy)
                             aucs.append(auc)
-                            # precisions.append(precision)
-                            # recalls.append(recall)
+
                         time_str = datetime.datetime.now().isoformat()
                         print("dev: {}, step: {}, loss: {}, acc: {}, auc: {}".
                               format(time_str, current_step, mean(losses), mean(accuracys), mean(aucs)))
 
                     if current_step % config.trainConfig.checkpoint_every == 0:
-                        path = saver.save(sess, checkpoint_prefix, global_step=current_step)
+                        path = saver.save(sess, "model/my-model", global_step=current_step)
                         print("Saved model checkpoint to {}\n".format(path))
 
 
 if __name__ == "__main__":
-    fileName = "../data/assistments.txt"
+    fileName = "../data/knowledgeTracing.csv"
     dktEngine = DKTEngine()
     dktEngine.run_epoch(fileName)
 
