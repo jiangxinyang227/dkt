@@ -226,7 +226,7 @@ class DKTEngine(object):
 
 
 if __name__ == "__main__":
-    fileName = "../data/knowledgeTracing.csv"
+    fileName = "../data/assistments.txt"
     dktEngine = DKTEngine()
     dktEngine.run_epoch(fileName)
 

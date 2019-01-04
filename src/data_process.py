@@ -28,12 +28,11 @@ class DataGenerator(object):
         count = 0
         with open(self.fileName, 'r') as f:
             for line in f:
-                count += 1
-                if count > 1:
-                    fields = line.strip().split(",")  # 一个列表，[学生id，知识点id，答题结果]
-                    student, skill, is_correct = int(fields[0]), int(fields[1]), int(fields[2])
-                    skills.append(skill)  # skill实际上是用该题所属知识点来表示的
-                    seqs_by_student[student] = seqs_by_student.get(student, []) + [[skill, is_correct]]  # 保存每个学生的做题信息
+                fields = line.strip().split(" ")  # 一个列表，[学生id，知识点id，答题结果]
+                student, skill, is_correct = int(fields[0]), int(fields[1]), int(fields[2])
+                skills.append(skill)  # skill实际上是用该题所属知识点来表示的
+                seqs_by_student[student] = seqs_by_student.get(student, []) + [[skill, is_correct]]  # 保存每个学生的做题信息
+                
         return seqs_by_student, list(set(skills))
 
     def gen_dict(self, unique_skills):
