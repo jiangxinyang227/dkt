@@ -24,8 +24,9 @@ def load_model(fileName):
         for params in dataGen.next_batch(test_seqs):
             print("step: {}".format(step))
 
-            saver = tf.train.import_meta_graph("model/my-model-500.meta")
-            saver.restore(sess, tf.train.latest_checkpoint("model/"))
+            checkpoint_file = tf.train.latest_checkpoint("model/")
+            saver = tf.train.import_meta_graph("{}.meta".format(checkpoint_file))
+            saver.restore(sess, checkpoint_file)
 
             # 获得默认的计算图结构
             graph = tf.get_default_graph()
@@ -63,5 +64,5 @@ def load_model(fileName):
 
 
 if __name__ == "__main__":
-    fileName = "../data/knowledgeTracing.csv"
+    fileName = "../data/assistments.txt"
     load_model(fileName)
