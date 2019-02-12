@@ -1,5 +1,5 @@
 class TrainConfig(object):
-    epochs = 15
+    epochs = 2
     decay_rate = 0.92
     learning_rate = 0.01
     evaluate_every = 100
