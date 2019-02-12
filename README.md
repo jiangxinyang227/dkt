@@ -1,6 +1,10 @@
 ### Deep knowledge tracing
 ***
 ##### 基于LSTM网络根据学生的做题结果来预测和追踪学生对知识的掌握情况
+
+#### requirements
+    python == 3.6.5
+    tensorflow-gpu == 1.10.0
     
 #### 数据集
     学生的做题数据
