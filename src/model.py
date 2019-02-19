@@ -8,18 +8,20 @@ class TensorFlowDKT(object):
         self.hiddens = hiddens = config.modelConfig.hidden_layers
         self.num_skills = num_skills = config.num_skills
         self.input_size = input_size = config.input_size
-        self.batch_size = batch_size = config.batch_size
         self.keep_prob_value = config.modelConfig.dropout_keep_prob
 
         # 定义需要喂给模型的参数
         self.max_steps = tf.placeholder(tf.int32, name="max_steps")  # 当前batch中最大序列长度
-        self.input_data = tf.placeholder(tf.float32, [batch_size, None, input_size], name="input_x")
+        self.input_data = tf.placeholder(tf.float32, [None, None, input_size], name="input_x")
 
-        self.sequence_len = tf.placeholder(tf.int32, [batch_size], name="sequence_len")
-        self.keep_prob = tf.placeholder(tf.float32, name="keep_prob")  # dropout keep prob
+        self.sequence_len = tf.placeholder(tf.int32, [None], name="sequence_len")
+        self.keep_prob = tf.placeholder(tf.float32, name="keep_prob")
 
-        self.target_id = tf.placeholder(tf.int32, [batch_size, None], name="target_id")
-        self.target_correctness = tf.placeholder(tf.float32, [batch_size, None], name="target_correctness")
+        self.target_id = tf.placeholder(tf.int32, [None, None], name="target_id")
+        self.target_correctness = tf.placeholder(tf.float32, [None, None], name="target_correctness")
+
+        self.batch_size = tf.placeholder(tf.int32, name="batch_size")
+
         self.flat_target_correctness = None
 
         # 构建lstm模型结构
@@ -41,11 +43,11 @@ class TensorFlowDKT(object):
         output_w = tf.get_variable("W", [hiddens[-1], num_skills])
         output_b = tf.get_variable("b", [num_skills])
 
-        self.output = tf.reshape(outputs, [batch_size * self.max_steps, hiddens[-1]])
+        self.output = tf.reshape(outputs, [-1, hiddens[-1]])
         # 因为权值共享的原因，对生成的矩阵[batch_size * self.max_steps, num_skills]中的每一行都加上b
         self.logits = tf.matmul(self.output, output_w) + output_b
 
-        self.mat_logits = tf.reshape(self.logits, [batch_size, self.max_steps, num_skills])
+        self.mat_logits = tf.reshape(self.logits, [-1, self.max_steps, num_skills])
 
         # 对每个batch中每个序列中的每个时间点的输出中的每个值进行sigmoid计算，这里的值表示对某个知识点的掌握情况，
         # 每个时间点都会输出对所有知识点的掌握情况
@@ -57,7 +59,7 @@ class TensorFlowDKT(object):
         flat_target_correctness = tf.reshape(self.target_correctness, [-1])
         self.flat_target_correctness = flat_target_correctness
 
-        flat_base_target_index = tf.range(batch_size * self.max_steps) * num_skills
+        flat_base_target_index = tf.range(self.batch_size * self.max_steps) * num_skills
 
         # 因为flat_logits的长度为batch_size * num_steps * num_skills，我们要根据每一步的target_id将其长度变成batch_size * num_steps
         flat_base_target_id = tf.reshape(self.target_id, [-1])
@@ -67,7 +69,7 @@ class TensorFlowDKT(object):
         flat_target_logits = tf.gather(flat_logits, flat_target_id)
 
         # 对切片后的数据进行sigmoid转换
-        self.pred = tf.sigmoid(tf.reshape(flat_target_logits, [batch_size, self.max_steps]), name="pred")
+        self.pred = tf.sigmoid(tf.reshape(flat_target_logits, [-1, self.max_steps]), name="pred")
         # 将sigmoid后的值表示为0或1
         self.binary_pred = tf.cast(tf.greater_equal(self.pred, 0.5), tf.float32, name="binary_pred")
 

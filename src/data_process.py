@@ -133,11 +133,19 @@ class DataGenerator(object):
         return dict(input_x=input_x, target_id=target_id, target_correctness=target_correctness,
                     seq_len=seq_len, max_len=max_len)
 
-    def next_batch(self, seqs):
-        # 接收一个序列，生成batch
+    def next_batch(self, seqs, mode):
+        """
+        采用生成器的形式生成一个batch
+        :param seqs:
+        :param mode: 判断是测试，训练还是验证
+        :return:
+        """
 
         length = len(seqs)
         num_batchs = length // self.batch_size
+        if mode == "eval" or mode == "test":
+            # 如果是测试或验证，则把所有的数据都用完，最后一个batch的大小若小于batch_size，也直接使用
+            num_batchs += 1
         start = 0
         for i in range(num_batchs):
             batch_seqs = seqs[start: start + self.batch_size]

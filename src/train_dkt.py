@@ -73,7 +73,8 @@ class DKTEngine(object):
                      dkt.target_correctness: params['target_correctness'],
                      dkt.max_steps: params['max_len'],
                      dkt.sequence_len: params['seq_len'],
-                     dkt.keep_prob: self.config.modelConfig.dropout_keep_prob}
+                     dkt.keep_prob: self.config.modelConfig.dropout_keep_prob,
+                     dkt.batch_size: self.config.batch_size}
 
         _, step, summaries, loss, binary_pred, pred, target_correctness = sess.run(
             [train_op, global_step, train_summary_op, dkt.loss, dkt.binary_pred, dkt.pred, dkt.target_correctness],
@@ -98,7 +99,8 @@ class DKTEngine(object):
                      dkt.target_correctness: params['target_correctness'],
                      dkt.max_steps: params['max_len'],
                      dkt.sequence_len: params['seq_len'],
-                     dkt.keep_prob: 1.0}
+                     dkt.keep_prob: 1.0,
+                     dkt.batch_size: len(params["seq_len"])}
         step, summaries, loss, pred, binary_pred, target_correctness = sess.run(
             [global_step, dev_summary_op, dkt.loss, dkt.pred, dkt.binary_pred, dkt.target_correctness],
             feed_dict)
@@ -196,7 +198,7 @@ class DKTEngine(object):
             print("初始化完毕，开始训练")
             for i in range(config.trainConfig.epochs):
                 np.random.shuffle(train_seqs)
-                for params in dataGen.next_batch(train_seqs):
+                for params in dataGen.next_batch(train_seqs, "train"):
                     # 批次获得训练集，训练模型
                     self.train_step(params, train_op, train_summary_op, train_summary_writer)
 
@@ -210,7 +212,7 @@ class DKTEngine(object):
                         losses = []
                         accuracys = []
                         aucs = []
-                        for params in dataGen.next_batch(test_seqs):
+                        for params in dataGen.next_batch(test_seqs, "eval"):
                             loss, accuracy, auc = self.dev_step(params, dev_summary_op, writer=None)
                             losses.append(loss)
                             accuracys.append(accuracy)
@@ -220,9 +222,31 @@ class DKTEngine(object):
                         print("dev: {}, step: {}, loss: {}, acc: {}, auc: {}".
                               format(time_str, current_step, mean(losses), mean(accuracys), mean(aucs)))
 
+                    # 保存为checkpoint模型文件
                     if current_step % config.trainConfig.checkpoint_every == 0:
                         path = saver.save(sess, "model/my-model", global_step=current_step)
                         print("Saved model checkpoint to {}\n".format(path))
+
+            # 保存为pb模型文件
+            builder = tf.saved_model.builder.SavedModelBuilder("./sevenSkillModel")
+            inputs = {"input_x": tf.saved_model.utils.build_tensor_info(self.train_dkt.input_data),
+                      "target_id": tf.saved_model.utils.build_tensor_info(self.train_dkt.target_id),
+                      "max_steps": tf.saved_model.utils.build_tensor_info(self.train_dkt.max_steps),
+                      "sequence_len": tf.saved_model.utils.build_tensor_info(self.train_dkt.sequence_len),
+                      "keep_prob": tf.saved_model.utils.build_tensor_info(self.train_dkt.keep_prob),
+                      "batch_size": tf.saved_model.utils.build_tensor_info(self.train_dkt.batch_size)}
+
+            outputs = {"pred_all": tf.saved_model.utils.build_tensor_info(self.train_dkt.pred_all)}
+
+            prediction_signature = tf.saved_model.signature_def_utils.build_signature_def(inputs=inputs,
+                                                                                          outputs=outputs,
+                                                                                          method_name=tf.saved_model.signature_constants.PREDICT_METHOD_NAME)
+            legacy_init_op = tf.group(tf.tables_initializer(), name="legacy_init_op")
+            builder.add_meta_graph_and_variables(sess, [tf.saved_model.tag_constants.SERVING],
+                                                 signature_def_map={"predict": prediction_signature},
+                                                 legacy_init_op=legacy_init_op)
+
+            builder.save()
 
 
 if __name__ == "__main__":

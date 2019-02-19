@@ -21,7 +21,7 @@ def load_model(fileName):
         aucs = []
         step = 1
 
-        for params in dataGen.next_batch(test_seqs):
+        for params in dataGen.next_batch(test_seqs, "test"):
             print("step: {}".format(step))
 
             checkpoint_file = tf.train.latest_checkpoint("model/")
@@ -37,6 +37,7 @@ def load_model(fileName):
             keep_prob = graph.get_operation_by_name("test/dkt/keep_prob").outputs[0]
             max_steps = graph.get_operation_by_name("test/dkt/max_steps").outputs[0]
             sequence_len = graph.get_operation_by_name("test/dkt/sequence_len").outputs[0]
+            batch_size = graph.get_operation_by_name("test/dkt/batch_size").outputs[0]
 
             # 获得输出的结果
             pred_all = graph.get_tensor_by_name("test/dkt/pred_all:0")
@@ -49,7 +50,8 @@ def load_model(fileName):
                                                               target_id: params["target_id"],
                                                               keep_prob: 1.0,
                                                               max_steps: params["max_len"],
-                                                              sequence_len: params["seq_len"]})
+                                                              sequence_len: params["seq_len"],
+                                                              batch_size: len(params["seq_len"])})
 
             auc, acc = gen_metrics(params["seq_len"], binary_pred, pred, target_correctness)
             print(auc, acc)
