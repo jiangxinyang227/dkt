@@ -212,7 +212,7 @@ class DKTEngine(object):
                         losses = []
                         accuracys = []
                         aucs = []
-                        for params in dataGen.next_batch(test_seqs, "eval"):
+                        for params in dataGen.next_batch(test_seqs, "test"):
                             loss, accuracy, auc = self.dev_step(params, dev_summary_op, writer=None)
                             losses.append(loss)
                             accuracys.append(accuracy)
