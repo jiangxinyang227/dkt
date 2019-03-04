@@ -25,7 +25,6 @@ class DataGenerator(object):
         # 保存每个学生的做题信息 {学生id: [[知识点id，答题结果], [知识点id，答题结果], ...]}，用一个二元列表来表示一个学生的答题信息
         seqs_by_student = {}
         skills = []  # 统计知识点的数量，之后输入的向量长度就是两倍的知识点数量
-        count = 0
         with open(self.fileName, 'r') as f:
             for line in f:
                 fields = line.strip().split(" ")  # 一个列表，[学生id，知识点id，答题结果]
@@ -72,7 +71,8 @@ class DataGenerator(object):
         """
         if is_infer:
             seqs_by_students, skills = self.read_file()
-            self.infer_seqs = seqs_by_students
+            infer_seqs = [value for value in seqs_by_students.values()]
+            self.infer_seqs = infer_seqs
         else:
             seqs_by_students, skills = self.read_file()
             train_seqs, test_seqs = self.split_dataset(seqs_by_students)
@@ -143,11 +143,12 @@ class DataGenerator(object):
 
         length = len(seqs)
         num_batchs = length // self.batch_size
-        if mode == "eval" or mode == "test":
+        if mode == "infer" or mode == "test":
             # 如果是测试或验证，则把所有的数据都用完，最后一个batch的大小若小于batch_size，也直接使用
             num_batchs += 1
         start = 0
         for i in range(num_batchs):
+
             batch_seqs = seqs[start: start + self.batch_size]
             start += self.batch_size
             params = self.format_data(batch_seqs)
