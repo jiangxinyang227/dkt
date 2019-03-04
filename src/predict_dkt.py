@@ -11,9 +11,9 @@ def load_model(fileName):
 
     # 实例化数据生成对象
     dataGen = DataGenerator(fileName, config)
-    dataGen.gen_attr()  # 生成训练集和测试集
+    dataGen.gen_attr(is_infer=True)  # 生成训练集和测试集
 
-    test_seqs = dataGen.test_seqs
+    infer_seqs = dataGen.infer_seqs
 
     with tf.Session() as sess:
 
@@ -21,7 +21,7 @@ def load_model(fileName):
         aucs = []
         step = 1
 
-        for params in dataGen.next_batch(test_seqs, "test"):
+        for params in dataGen.next_batch(infer_seqs, "infer"):
             print("step: {}".format(step))
 
             checkpoint_file = tf.train.latest_checkpoint("model/")
@@ -55,6 +55,7 @@ def load_model(fileName):
 
             auc, acc = gen_metrics(params["seq_len"], binary_pred, pred, target_correctness)
             print(auc, acc)
+            print(len(params["seq_len"]))
             accuracys.append(acc)
             aucs.append(auc)
             step += 1
@@ -66,5 +67,5 @@ def load_model(fileName):
 
 
 if __name__ == "__main__":
-    fileName = "../data/assistments.txt"
+    fileName = "../data/test.txt"
     load_model(fileName)
