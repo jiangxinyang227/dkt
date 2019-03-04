@@ -14,7 +14,7 @@ class ModelConfig(object):
 
 class Config(object):
     batch_size = 10
-    num_skills = 267
+    num_skills = 267  # 训练集所包含的知识点的数量，针对自己的数据集，需要修改这个值
     input_size = num_skills * 2
 
     trainConfig = TrainConfig()
