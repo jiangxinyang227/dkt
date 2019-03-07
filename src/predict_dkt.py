@@ -16,6 +16,12 @@ def load_model(fileName):
     infer_seqs = dataGen.infer_seqs
 
     with tf.Session() as sess:
+        checkpoint_file = tf.train.latest_checkpoint("model/")
+        saver = tf.train.import_meta_graph("{}.meta".format(checkpoint_file))
+        saver.restore(sess, checkpoint_file)
+
+        # 获得默认的计算图结构
+        graph = tf.get_default_graph()
 
         accuracys = []
         aucs = []
@@ -23,13 +29,6 @@ def load_model(fileName):
 
         for params in dataGen.next_batch(infer_seqs, "infer"):
             print("step: {}".format(step))
-
-            checkpoint_file = tf.train.latest_checkpoint("model/")
-            saver = tf.train.import_meta_graph("{}.meta".format(checkpoint_file))
-            saver.restore(sess, checkpoint_file)
-
-            # 获得默认的计算图结构
-            graph = tf.get_default_graph()
 
             # 获得需要喂给模型的参数，输出的结果依赖的输入值
             input_x = graph.get_operation_by_name("test/dkt/input_x").outputs[0]
