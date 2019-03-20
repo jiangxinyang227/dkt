@@ -71,6 +71,8 @@ class DKTEngine(object):
         feed_dict = {dkt.input_data: params['input_x'],
                      dkt.target_id: params['target_id'],
                      dkt.target_correctness: params['target_correctness'],
+                     dkt.source_id: params["source_id"],
+                     dkt.source_correctness: params["source_correctness"],
                      dkt.max_steps: params['max_len'],
                      dkt.sequence_len: params['seq_len'],
                      dkt.keep_prob: self.config.modelConfig.dropout_keep_prob,
@@ -97,6 +99,8 @@ class DKTEngine(object):
         feed_dict = {dkt.input_data: params['input_x'],
                      dkt.target_id: params['target_id'],
                      dkt.target_correctness: params['target_correctness'],
+                     dkt.source_id: params["source_id"],
+                     dkt.source_correctness: params["source_correctness"],
                      dkt.max_steps: params['max_len'],
                      dkt.sequence_len: params['seq_len'],
                      dkt.keep_prob: 1.0,
@@ -141,11 +145,11 @@ class DKTEngine(object):
             # 实例化dkt模型对象
             with tf.name_scope("train"):
                 with tf.variable_scope("dkt", reuse=None):
-                    train_dkt = TensorFlowDKT(config)
+                    train_dkt = TensorFlowDKT(config, is_add_loss=config.is_add_loss)
 
             with tf.name_scope("test"):
                 with tf.variable_scope("dkt", reuse=True):
-                    test_dkt = TensorFlowDKT(config)
+                    test_dkt = TensorFlowDKT(config, is_add_loss=config.is_add_loss)
 
             self.train_dkt = train_dkt
             self.test_dkt = test_dkt
@@ -224,29 +228,29 @@ class DKTEngine(object):
 
                     # 保存为checkpoint模型文件
                     if current_step % config.trainConfig.checkpoint_every == 0:
-                        path = saver.save(sess, "model/my-model", global_step=current_step)
+                        path = saver.save(sess, "model/add_loss/my-model", global_step=current_step)
                         print("Saved model checkpoint to {}\n".format(path))
 
             # 保存为pb模型文件
-            builder = tf.saved_model.builder.SavedModelBuilder("./sevenSkillModel")
-            inputs = {"input_x": tf.saved_model.utils.build_tensor_info(self.train_dkt.input_data),
-                      "target_id": tf.saved_model.utils.build_tensor_info(self.train_dkt.target_id),
-                      "max_steps": tf.saved_model.utils.build_tensor_info(self.train_dkt.max_steps),
-                      "sequence_len": tf.saved_model.utils.build_tensor_info(self.train_dkt.sequence_len),
-                      "keep_prob": tf.saved_model.utils.build_tensor_info(self.train_dkt.keep_prob),
-                      "batch_size": tf.saved_model.utils.build_tensor_info(self.train_dkt.batch_size)}
-
-            outputs = {"pred_all": tf.saved_model.utils.build_tensor_info(self.train_dkt.pred_all)}
-
-            prediction_signature = tf.saved_model.signature_def_utils.build_signature_def(inputs=inputs,
-                                                                                          outputs=outputs,
-                                                                                          method_name=tf.saved_model.signature_constants.PREDICT_METHOD_NAME)
-            legacy_init_op = tf.group(tf.tables_initializer(), name="legacy_init_op")
-            builder.add_meta_graph_and_variables(sess, [tf.saved_model.tag_constants.SERVING],
-                                                 signature_def_map={"predict": prediction_signature},
-                                                 legacy_init_op=legacy_init_op)
-
-            builder.save()
+            # builder = tf.saved_model.builder.SavedModelBuilder("./sevenSkillModel")
+            # inputs = {"input_x": tf.saved_model.utils.build_tensor_info(self.train_dkt.input_data),
+            #           "target_id": tf.saved_model.utils.build_tensor_info(self.train_dkt.target_id),
+            #           "max_steps": tf.saved_model.utils.build_tensor_info(self.train_dkt.max_steps),
+            #           "sequence_len": tf.saved_model.utils.build_tensor_info(self.train_dkt.sequence_len),
+            #           "keep_prob": tf.saved_model.utils.build_tensor_info(self.train_dkt.keep_prob),
+            #           "batch_size": tf.saved_model.utils.build_tensor_info(self.train_dkt.batch_size)}
+            #
+            # outputs = {"pred_all": tf.saved_model.utils.build_tensor_info(self.train_dkt.pred_all)}
+            #
+            # prediction_signature = tf.saved_model.signature_def_utils.build_signature_def(inputs=inputs,
+            #                                                                               outputs=outputs,
+            #                                                                               method_name=tf.saved_model.signature_constants.PREDICT_METHOD_NAME)
+            # legacy_init_op = tf.group(tf.tables_initializer(), name="legacy_init_op")
+            # builder.add_meta_graph_and_variables(sess, [tf.saved_model.tag_constants.SERVING],
+            #                                      signature_def_map={"predict": prediction_signature},
+            #                                      legacy_init_op=legacy_init_op)
+            #
+            # builder.save()
 
 
 if __name__ == "__main__":
