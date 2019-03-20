@@ -123,6 +123,13 @@ class DataGenerator(object):
         input_x = np.array([[self.num_to_one_hot(j, self.num_skills * 2) for j in i] for i in x])
 
         # 遍历batch_size，然后取每条序列的后len(i)-1 个元素中的知识点id为target_id
+        source_id_seqs = np.array([[self.skills_to_int[j[0]] for j in i[:-1]] for i in seqs])
+        source_id = self.pad_sequences(source_id_seqs, maxlen=max_len, value=0)
+        # 同source_id
+        source_correctness_seqs = np.array([[j[1] for j in i[:-1]] for i in seqs])
+        source_correctness = self.pad_sequences(source_correctness_seqs, maxlen=max_len, value=0)
+
+        # 遍历batch_size，然后取每条序列的后len(i)-1 个元素中的知识点id为target_id
         target_id_seqs = np.array([[self.skills_to_int[j[0]] for j in i[1:]] for i in seqs])
         target_id = self.pad_sequences(target_id_seqs, maxlen=max_len, value=0)
 
@@ -130,8 +137,8 @@ class DataGenerator(object):
         target_correctness_seqs = np.array([[j[1] for j in i[1:]] for i in seqs])
         target_correctness = self.pad_sequences(target_correctness_seqs, maxlen=max_len, value=0)
 
-        return dict(input_x=input_x, target_id=target_id, target_correctness=target_correctness,
-                    seq_len=seq_len, max_len=max_len)
+        return dict(input_x=input_x, target_id=target_id, target_correctness=target_correctness, source_id=source_id,
+                    source_correctness=source_correctness, seq_len=seq_len, max_len=max_len)
 
     def next_batch(self, seqs, mode):
         """
